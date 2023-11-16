@@ -19,7 +19,8 @@ service = apiclient.discovery.build('sheets', 'v4', http=httpAuth)
 
 def get_html(URL):
 	try:
-		r = requests.get(URL)
+		headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36", "content-type": "text"}
+		r = requests.get(URL, headers=headers)
 		r.raise_for_status()
 		return r
 	except(requests.RequestException, ValueError):
@@ -54,23 +55,31 @@ def insert_into_table(keys, values, row):
 				col_to_put = i
 				break
 		if col_to_put == -1:
+			column = chr(65 + len_available_keys) \
+				if (65 + len_available_keys) <= 90 \
+				else (chr((65 + len_available_keys // 26 - 1)) \
+					+ chr((65 + len_available_keys % 26))) # будет актульно при доступном количестве столбоцов > 26
 			service.spreadsheets().values().batchUpdate(
 				spreadsheetId = spreadsheet_id,
 				body = {
 					"valueInputOption": "USER_ENTERED",
 					"data": [
-						{"range": f"{chr(65 + len_available_keys)}1",
+						{"range": f"{column}1",
 						"values": [[keys[characteristic_id]]]}, 
-						{"range": f"{chr(65 + len_available_keys)}{row}",
+						{"range": f"{column}{row}",
 						"values": [[values[characteristic_id]]]}]}).execute()
 			len_available_keys += 1
 		else:
+			column = chr(65 + col_to_put) \
+				if (65 + col_to_put) <= 90 \
+				else (chr((65 + col_to_put // 26 - 1)) \
+					+ chr((65 + col_to_put % 26))) # будет актульно при доступном количестве столбоцов > 26
 			service.spreadsheets().values().batchUpdate(
 					spreadsheetId = spreadsheet_id,
 					body = {
 						"valueInputOption": "USER_ENTERED",
 						"data": [
-							{"range": f"{chr(65 + col_to_put)}{row}",
+							{"range": f"{column}{row}",
 							"values": [[values[characteristic_id]]]}]}).execute()
 
 
@@ -79,6 +88,8 @@ links = service.spreadsheets().values().get(
 	range='A:A',
 	majorDimension='COLUMNS').execute()['values'][0][1:]
 for row in range(len(links)):
+	if not links[row]:
+		continue
 	HTML = get_html(links[row])
 	characteristic_keys, characteristic_values = get_characteristics(HTML.text)
 	insert_into_table(characteristic_keys, characteristic_values, row + 2)
